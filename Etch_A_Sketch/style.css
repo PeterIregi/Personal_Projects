@@ -1,0 +1,25 @@
+body{
+
+}
+#container{
+    display:flex;
+    flex-direction: column;
+    height:600px;
+    width:800px;
+}
+.rowContainer{
+    display:flex;
+    flex-direction: row;
+    flex:1;
+    
+}
+.gridCell{
+    border:0.5px solid black;
+    flex:1;
+    box-sizing: border-box;
+    
+}
+.gridCellHover{
+    flex:1;
+    
+}
