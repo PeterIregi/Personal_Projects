@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kiboswa HMS — Visit</title>
+  <link rel="stylesheet" href="../static/css/style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="site-header">
+    <h1>Kiboswa Medical Center</h1>
+    <span class="hdr-right" id="hdr-date"></span>
+  </header>
+
+  <nav class="site-nav">
+    <a href="/intake">Intake</a>
+    <a href="/queue">Queue</a>
+    <a href="/records">Records</a>
+    <a href="/dashboard">Dashboard</a>
+  </nav>
+
+  <div id="back-bar"></div>
+  <div id="visit-header"></div>
+  <div id="stage-section"></div>
+
+</div>
+<script src="/static/js/app.js"></script>
+<script>
+const params  = new URLSearchParams(location.search);
+const VID     = parseInt(params.get('vid'));
+const BACK    = params.get('back') || 'queue';
+let   visit   = null;
+let   deptNextChoice = 'pharmacy';
+
+const BACK_URLS = { intake: '/intake', queue: '/queue', records: '/records', dashboard: '/dashboard' };
+
+async function loadVisit() {
+  visit = await API.visit(VID);
+  render();
+}
+
+function render() {
+  document.getElementById('back-bar').innerHTML =
+    `<a href="${BACK_URLS[BACK] || '/queue'}" class="btn btn-gray" style="margin-bottom:12px;display:inline-block">← Back</a>`;
+
+  document.getElementById('visit-header').innerHTML = `
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div>
+          <h2 style="border:0;padding:0;margin:0">V-${visit.vid} — ${visit.patientName}</h2>
+          <p style="font-size:11px;color:#888;margin-top:2px">KMC-${visit.pid} · Age ${visit.patientAge} · ${visit.patientPhone}</p>
+        </div>
+        <span class="badge ${statusBadge(visit.status)}">${statusLabel(visit.status)}</span>
+      </div>
+      <div class="timeline">${(visit.timeline||[]).map(t => `
+        <div class="tl-item">
+          <strong style="font-size:12px">${t.event}</strong><br>
+          <span class="tl-time">${fmt(t.time)}</span>
+        </div>`).join('')}
+      </div>
+    </div>`;
+
+  const stages = { triage: renderTriage, consultation: renderConsultation,
+                   department: renderDepartment, pharmacy: renderPharmacy, discharged: renderDischarged };
+  document.getElementById('stage-section').innerHTML = (stages[visit.status] || renderTriage)();
+}
+
+/* ── Triage ───────────────────────────────────────────────── */
+function renderTriage() {
+  return `<div class="card">
+    <h2>Triage — Record Vitals</h2>
+    <p style="font-size:12px;color:#888;margin-bottom:14px">Leave any field blank to use the clinical default shown.</p>
+    <div class="form-row three">
+      <div class="field"><label>Temperature (°C) <span style="color:#aaa">[${DEFAULTS.temp}]</span></label><input id="v-temp" placeholder="${DEFAULTS.temp}"></div>
+      <div class="field"><label>Blood Pressure <span style="color:#aaa">[${DEFAULTS.bp}]</span></label><input id="v-bp" placeholder="${DEFAULTS.bp}"></div>
+      <div class="field"><label>Pulse (bpm) <span style="color:#aaa">[${DEFAULTS.pulse}]</span></label><input id="v-pulse" placeholder="${DEFAULTS.pulse}"></div>
+    </div>
+    <div class="form-row three">
+      <div class="field"><label>SpO₂ (%) <span style="color:#aaa">[${DEFAULTS.spo2}]</span></label><input id="v-spo2" placeholder="${DEFAULTS.spo2}"></div>
+      <div class="field"><label>Resp. Rate <span style="color:#aaa">[${DEFAULTS.rr}]</span></label><input id="v-rr" placeholder="${DEFAULTS.rr}"></div>
+      <div class="field"><label>Weight (kg)</label><input id="v-weight" placeholder="optional"></div>
+    </div>
+    <div class="field" style="margin-bottom:12px">
+      <label>Chief Complaint / Notes</label>
+      <textarea id="v-notes" rows="2" placeholder="Brief description of presenting complaint..."></textarea>
+    </div>
+    <div class="section-actions">
+      <button class="btn btn-primary" onclick="submitTriage(false)">Save Vitals & Send to Consultation</button>
+      <button class="btn btn-gray"    onclick="submitTriage(true)">Skip Vitals & Send to Consultation</button>
+    </div>
+  </div>`;
+}
+
+async function submitTriage(skip) {
+  const g = id => document.getElementById(id);
+  visit.vitals = {
+    temp:   (!skip && g('v-temp').value.trim())   || DEFAULTS.temp,
+    bp:     (!skip && g('v-bp').value.trim())     || DEFAULTS.bp,
+    pulse:  (!skip && g('v-pulse').value.trim())  || DEFAULTS.pulse,
+    spo2:   (!skip && g('v-spo2').value.trim())   || DEFAULTS.spo2,
+    rr:     (!skip && g('v-rr').value.trim())     || DEFAULTS.rr,
+    weight: (!skip && g('v-weight').value.trim()) || 'N/A',
+    recordedAt: now(),
+  };
+  const notes = !skip ? g('v-notes').value.trim() : '';
+  if (notes) visit.notes.push({ text: notes, time: now(), by: 'Triage' });
+  visit.status = 'consultation';
+  visit.timeline.push({ event: `Vitals recorded${skip ? ' (defaults used)' : ''} — sent to Consultation`, time: now() });
+  visit = await API.updateVisit(visit);
+  render();
+}
+
+/* ── Consultation ─────────────────────────────────────────── */
+function renderConsultation() {
+  const vt = visit.vitals;
+  const drugsHTML = (visit.drugs || []).map((d, i) => drugRow(d, i)).join('');
+  return `<div class="card">
+    <h2>Consultation</h2>
+    <div class="vitals-grid">
+      <div class="vital-card"><div class="val">${vt.temp}°C</div><div class="lbl">Temperature</div></div>
+      <div class="vital-card"><div class="val">${vt.bp}</div><div class="lbl">Blood Pressure</div></div>
+      <div class="vital-card"><div class="val">${vt.pulse} bpm</div><div class="lbl">Pulse</div></div>
+      <div class="vital-card"><div class="val">${vt.spo2}%</div><div class="lbl">SpO₂</div></div>
+      <div class="vital-card"><div class="val">${vt.rr}</div><div class="lbl">Resp. Rate</div></div>
+      <div class="vital-card"><div class="val">${vt.weight === 'N/A' ? '—' : vt.weight + ' kg'}</div><div class="lbl">Weight</div></div>
+    </div>
+    <div class="field" style="margin-bottom:12px">
+      <label>Consultation Notes / Diagnosis</label>
+      <textarea id="c-notes" rows="3" placeholder="Enter findings, diagnosis, treatment plan...">${visit.consultationNotes || ''}</textarea>
+    </div>
+    <h3>Prescribe Medications</h3>
+    <div id="drug-list">${drugsHTML}</div>
+    <button class="btn btn-gray" style="margin-bottom:14px;font-size:12px" onclick="addDrug()">+ Add Medication</button>
+    <h3>Disposition</h3>
+    <div class="form-row" style="margin-bottom:0">
+      <div class="field"><label>Select action</label>
+        <select id="c-disp">
+          <option value="">— choose —</option>
+          <option value="pharmacy">Send to Pharmacy</option>
+          ${DEPTS.map(d => `<option value="dept:${d}">Refer to ${d}</option>`).join('')}
+          <option value="discharge">Discharge (no meds/referral)</option>
+        </select>
+      </div>
+    </div>
+    <div class="section-actions" style="margin-top:12px">
+      <button class="btn btn-primary" onclick="submitConsultation()">Confirm & Proceed</button>
+    </div>
+  </div>`;
+}
+
+function drugRow(d, i) {
+  return `<div class="drug-row">
+    <input value="${d.drug}" placeholder="Drug name" oninput="visit.drugs[${i}].drug=this.value">
+    <input value="${d.dose}" placeholder="Dose & freq." style="max-width:160px" oninput="visit.drugs[${i}].dose=this.value">
+    <button class="btn btn-danger btn-sm" onclick="removeDrug(${i})">✕</button>
+  </div>`;
+}
+
+function addDrug() {
+  visit.drugs.push({ drug: '', dose: '', addedAt: now() });
+  document.getElementById('drug-list').innerHTML = visit.drugs.map((d, i) => drugRow(d, i)).join('');
+}
+
+function removeDrug(i) {
+  visit.drugs.splice(i, 1);
+  document.getElementById('drug-list').innerHTML = visit.drugs.map((d, i) => drugRow(d, i)).join('');
+}
+
+async function submitConsultation() {
+  const notes = document.getElementById('c-notes').value.trim();
+  const disp  = document.getElementById('c-disp').value;
+  if (!disp) { alert('Please select a disposition.'); return; }
+  visit.consultationNotes = notes;
+  if (notes) visit.notes.push({ text: notes, time: now(), by: 'Doctor' });
+  if (disp === 'pharmacy') {
+    visit.status = 'pharmacy'; visit.disposition = 'Sent to Pharmacy';
+    visit.timeline.push({ event: 'Consultation complete — sent to Pharmacy', time: now() });
+  } else if (disp.startsWith('dept:')) {
+    const dept = disp.replace('dept:', '');
+    visit.status = 'department'; visit.disposition = `Referred to ${dept}`;
+    visit.currentDept = dept; visit.departments.push({ dept, at: now() });
+    visit.timeline.push({ event: `Referred to ${dept}`, time: now() });
+  } else if (disp === 'discharge') {
+    visit.status = 'discharged'; visit.disposition = 'Discharged after consultation';
+    visit.dischargedAt = now();
+    visit.timeline.push({ event: 'Patient discharged after consultation', time: now() });
+  }
+  visit = await API.updateVisit(visit);
+  render();
+}
+
+/* ── Department ───────────────────────────────────────────── */
+function renderDepartment() {
+  deptNextChoice = 'pharmacy';
+  return `<div class="card">
+    <h2>${visit.currentDept || 'Department'}</h2>
+    <div class="msg msg-info">Patient referred to <strong>${visit.currentDept}</strong> for further investigation.</div>
+    <div class="field" style="margin-bottom:12px">
+      <label>Department Findings / Report</label>
+      <textarea id="dept-notes" rows="3" placeholder="Enter department report, test results..."></textarea>
+    </div>
+    <h3 style="margin-bottom:8px">After Review — Next Step</h3>
+    <div class="dept-grid">
+      <div class="dept-btn selected" id="dn-pharmacy"   onclick="selDept('pharmacy')">Send to Pharmacy</div>
+      <div class="dept-btn"         id="dn-consult"     onclick="selDept('consult')">Back to Consultation</div>
+      <div class="dept-btn"         id="dn-discharge"   onclick="selDept('discharge')">Discharge</div>
+      ${DEPTS.filter(d => d !== visit.currentDept).map(d =>
+        `<div class="dept-btn" id="dn-${d.replace(/\s/g,'')}" onclick="selDept('dept:${d}')">${d}</div>`
+      ).join('')}
+    </div>
+    <div class="section-actions">
+      <button class="btn btn-primary" onclick="submitDepartment()">Confirm & Proceed</button>
+    </div>
+  </div>`;
+}
+
+function selDept(val) {
+  deptNextChoice = val;
+  document.querySelectorAll('.dept-btn').forEach(b => b.classList.remove('selected'));
+  const key = val.startsWith('dept:') ? val.replace('dept:','').replace(/\s/g,'') : val;
+  const el = document.getElementById('dn-' + key);
+  if (el) el.classList.add('selected');
+}
+
+async function submitDepartment() {
+  const notes = document.getElementById('dept-notes').value.trim();
+  if (notes) visit.notes.push({ text: `[${visit.currentDept}] ${notes}`, time: now(), by: visit.currentDept });
+  const choice = deptNextChoice || 'pharmacy';
+  if (choice === 'pharmacy') {
+    visit.status = 'pharmacy'; visit.disposition = 'Sent to Pharmacy after ' + visit.currentDept;
+    visit.timeline.push({ event: `${visit.currentDept} report done — sent to Pharmacy`, time: now() });
+  } else if (choice === 'consult') {
+    visit.status = 'consultation'; visit.disposition = 'Returned to Consultation';
+    visit.timeline.push({ event: `${visit.currentDept} report done — returned to Consultation`, time: now() });
+  } else if (choice === 'discharge') {
+    visit.status = 'discharged'; visit.disposition = 'Discharged after ' + visit.currentDept;
+    visit.dischargedAt = now();
+    visit.timeline.push({ event: `Discharged after ${visit.currentDept}`, time: now() });
+  } else if (choice.startsWith('dept:')) {
+    const dept = choice.replace('dept:', '');
+    visit.currentDept = dept; visit.departments.push({ dept, at: now() });
+    visit.timeline.push({ event: `Referred to ${dept}`, time: now() });
+  }
+  visit = await API.updateVisit(visit);
+  render();
+}
+
+/* ── Pharmacy ─────────────────────────────────────────────── */
+function renderPharmacy() {
+  const drugs = (visit.drugs || []).filter(d => d.drug);
+  const dispensedHTML = (visit.dispensed || []).map((d, i) => dispensedRow(d, i)).join('');
+  return `<div class="card">
+    <h2>Pharmacy</h2>
+    ${drugs.length
+      ? `<h3>Prescribed Medications</h3>
+         <ul class="note-list">${drugs.map(d => `<li><strong>${d.drug}</strong> — ${d.dose || 'no dose specified'}</li>`).join('')}</ul>`
+      : '<div class="msg msg-warn">No medications prescribed.</div>'}
+    <div class="field" style="margin:14px 0 0">
+      <label>Pharmacist Notes / Substitutions</label>
+      <textarea id="ph-notes" rows="2" placeholder="Dispensing notes, substitutions..."></textarea>
+    </div>
+    <h3 style="margin-top:14px">Resources Dispensed</h3>
+    <div id="dispensed-list">${dispensedHTML}</div>
+    <button class="btn btn-gray" style="margin-bottom:14px;font-size:12px" onclick="addDispensed()">+ Add dispensed item</button>
+    <div class="section-actions">
+      <button class="btn btn-success" onclick="dischargePatient()">Dispense & Discharge Patient</button>
+    </div>
+  </div>`;
+}
+
+function dispensedRow(d, i) {
+  return `<div class="drug-row">
+    <input value="${d.item}" placeholder="Item / drug dispensed" oninput="visit.dispensed[${i}].item=this.value">
+    <input value="${d.qty}"  placeholder="Qty / units" style="max-width:130px" oninput="visit.dispensed[${i}].qty=this.value">
+    <button class="btn btn-danger btn-sm" onclick="removeDispensed(${i})">✕</button>
+  </div>`;
+}
+
+function addDispensed() {
+  if (!visit.dispensed) visit.dispensed = [];
+  visit.dispensed.push({ item: '', qty: '', at: now() });
+  document.getElementById('dispensed-list').innerHTML = visit.dispensed.map((d, i) => dispensedRow(d, i)).join('');
+}
+
+function removeDispensed(i) {
+  visit.dispensed.splice(i, 1);
+  document.getElementById('dispensed-list').innerHTML = visit.dispensed.map((d, i) => dispensedRow(d, i)).join('');
+}
+
+async function dischargePatient() {
+  const notes = document.getElementById('ph-notes').value.trim();
+  if (notes) visit.notes.push({ text: `[Pharmacy] ${notes}`, time: now(), by: 'Pharmacy' });
+  visit.status = 'discharged'; visit.dischargedAt = now();
+  if (!visit.disposition) visit.disposition = 'Discharged via Pharmacy';
+  visit.timeline.push({ event: 'Medications dispensed — patient discharged', time: now() });
+  visit = await API.updateVisit(visit);
+  render();
+}
+
+/* ── Discharged ───────────────────────────────────────────── */
+function renderDischarged() {
+  const drugs     = (visit.drugs     || []).filter(d => d.drug);
+  const dispensed = (visit.dispensed || []);
+  return `<div class="card">
+    <h2>Visit Complete — Discharged</h2>
+    <div class="msg msg-success">
+      Patient discharged on ${fmt(visit.dischargedAt)}. Disposition: <strong>${visit.disposition}</strong>
+    </div>
+    <h3 style="margin-top:14px">Vitals Summary</h3>
+    <div class="vitals-grid">
+      <div class="vital-card"><div class="val">${visit.vitals.temp||'—'}°C</div><div class="lbl">Temperature</div></div>
+      <div class="vital-card"><div class="val">${visit.vitals.bp||'—'}</div><div class="lbl">Blood Pressure</div></div>
+      <div class="vital-card"><div class="val">${visit.vitals.pulse||'—'}</div><div class="lbl">Pulse</div></div>
+      <div class="vital-card"><div class="val">${visit.vitals.spo2||'—'}%</div><div class="lbl">SpO₂</div></div>
+      <div class="vital-card"><div class="val">${visit.vitals.rr||'—'}</div><div class="lbl">Resp. Rate</div></div>
+      <div class="vital-card"><div class="val">${visit.vitals.weight==='N/A'?'—':(visit.vitals.weight||'—')+' kg'}</div><div class="lbl">Weight</div></div>
+    </div>
+    ${visit.consultationNotes
+      ? `<h3 style="margin-top:14px">Consultation Notes</h3><p style="font-size:13px;color:#444">${visit.consultationNotes}</p>` : ''}
+    ${drugs.length
+      ? `<h3 style="margin-top:14px">Prescribed</h3><ul class="note-list">${drugs.map(d=>`<li>${d.drug} — ${d.dose}</li>`).join('')}</ul>` : ''}
+    ${dispensed.length
+      ? `<h3 style="margin-top:14px">Dispensed Resources</h3><ul class="note-list">${dispensed.map(d=>`<li>${d.item} · ${d.qty}</li>`).join('')}</ul>` : ''}
+    ${(visit.departments||[]).length
+      ? `<h3 style="margin-top:14px">Departments Visited</h3><ul class="note-list">${visit.departments.map(d=>`<li>${d.dept} — ${fmt(d.at)}</li>`).join('')}</ul>` : ''}
+    ${(visit.notes||[]).length
+      ? `<h3 style="margin-top:14px">All Clinical Notes</h3><ul class="note-list">${visit.notes.map(n=>`
+          <li><span style="color:#888;font-size:11px">[${n.by}] ${fmt(n.time)}</span><br>${n.text}</li>`).join('')}</ul>` : ''}
+  </div>`;
+}
+
+loadVisit();
+</script>
+</body>
+</html>
