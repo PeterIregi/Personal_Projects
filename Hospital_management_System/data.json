@@ -1,0 +1,73 @@
+{
+  "patients": [
+    {
+      "pid": 1001,
+      "name": "one person",
+      "age": 34,
+      "phone": "0123456789",
+      "registeredAt": "2026-04-12T12:24:25Z"
+    }
+  ],
+  "visits": [
+    {
+      "vid": 5001,
+      "pid": 1001,
+      "patientName": "one person",
+      "patientAge": 34,
+      "patientPhone": "0123456789",
+      "status": "discharged",
+      "startedAt": "2026-04-12T12:25:15Z",
+      "dischargedAt": "2026-04-12T12:26:51.993Z",
+      "timeline": [
+        {
+          "event": "Patient registered/identified and sent to triage",
+          "time": "2026-04-12T12:25:15.285Z"
+        },
+        {
+          "event": "Vitals recorded — sent to Consultation",
+          "time": "2026-04-12T12:25:59.420Z"
+        },
+        {
+          "event": "Consultation complete — sent to Pharmacy",
+          "time": "2026-04-12T12:26:29.007Z"
+        },
+        {
+          "event": "Medications dispensed — patient discharged",
+          "time": "2026-04-12T12:26:51.993Z"
+        }
+      ],
+      "vitals": {
+        "temp": "38.2",
+        "bp": "123/99",
+        "pulse": "80",
+        "spo2": "98",
+        "rr": "16",
+        "weight": "N/A",
+        "recordedAt": "2026-04-12T12:25:59.420Z"
+      },
+      "notes": [
+        {
+          "text": "physically dead",
+          "time": "2026-04-12T12:26:29.007Z",
+          "by": "Doctor"
+        },
+        {
+          "text": "[Pharmacy] nothing could be done",
+          "time": "2026-04-12T12:26:51.993Z",
+          "by": "Pharmacy"
+        }
+      ],
+      "drugs": [
+        {
+          "drug": "alchohol",
+          "dose": "",
+          "addedAt": "2026-04-12T12:26:16.099Z"
+        }
+      ],
+      "dispensed": [],
+      "departments": [],
+      "consultationNotes": "physically dead",
+      "disposition": "Sent to Pharmacy"
+    }
+  ]
+}
