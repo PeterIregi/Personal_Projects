@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kiboswa HMS — Queue</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="site-header">
+    <h1>Kiboswa Medical Center</h1>
+    <span class="hdr-right" id="hdr-date"></span>
+  </header>
+
+  <nav class="site-nav">
+    <a href="/intake">Intake</a>
+    <a href="/queue">Queue</a>
+    <a href="/records">Records</a>
+    <a href="/dashboard">Dashboard</a>
+  </nav>
+
+  <div class="card">
+    <h2>Active Queue</h2>
+
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+      <button class="btn btn-gray btn-sm" onclick="filterQueue('all')">All</button>
+      <button class="btn btn-gray btn-sm" onclick="filterQueue('triage')">Triage</button>
+      <button class="btn btn-gray btn-sm" onclick="filterQueue('consultation')">Consultation</button>
+      <button class="btn btn-gray btn-sm" onclick="filterQueue('department')">Department</button>
+      <button class="btn btn-gray btn-sm" onclick="filterQueue('pharmacy')">Pharmacy</button>
+      <button class="btn btn-gray btn-sm" onclick="loadQueue()" style="margin-left:auto">↻ Refresh</button>
+    </div>
+
+    <div id="queue-list"><span class="spinner"></span> Loading...</div>
+  </div>
+
+</div>
+<script src="/static/js/app.js"></script>
+<script>
+const ORDER = ['triage','consultation','department','pharmacy'];
+let _allVisits = [];
+let _filter = 'all';
+
+async function loadQueue() {
+  _allVisits = (await API.visits()).filter(v => v.status !== 'discharged');
+  renderQueue();
+}
+
+function filterQueue(f) {
+  _filter = f;
+  renderQueue();
+}
+
+function renderQueue() {
+  const el = document.getElementById('queue-list');
+  let visits = _filter === 'all' ? _allVisits : _allVisits.filter(v => v.status === _filter);
+  visits = [...visits].sort((a, b) => ORDER.indexOf(a.status) - ORDER.indexOf(b.status));
+  if (!visits.length) {
+    el.innerHTML = '<p style="color:#aaa;font-size:13px">No active patients in queue.</p>';
+    return;
+  }
+  el.innerHTML = visits.map(v => visitRowHTML(v, 'queue')).join('');
+}
+
+loadQueue();
+</script>
+</body>
+</html>
