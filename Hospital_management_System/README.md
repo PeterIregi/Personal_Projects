@@ -8,7 +8,7 @@ No database, no dependencies — data is stored in a single `data.json` file.
 ## Project Structure
 
 ```
-kiboswa/
+Hospital_management_System/
 ├── main.go                     # Go HTTP server + REST API
 ├── go.mod
 ├── data.json                   # Auto-created on first run
@@ -30,7 +30,7 @@ kiboswa/
 ## Running the Server
 
 ```bash
-cd kiboswa
+cd Hospital_management_System
 go run main.go
 ```
 
