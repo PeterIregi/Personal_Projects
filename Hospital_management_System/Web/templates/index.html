@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kiboswa Medical Center</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="site-header">
+    <h1>Kiboswa Medical Center</h1>
+    <span class="hdr-right" id="hdr-date"></span>
+  </header>
+
+  <nav class="site-nav">
+    <a href="/intake">Intake</a>
+    <a href="/queue">Queue</a>
+    <a href="/records">Records</a>
+    <a href="/dashboard">Dashboard</a>
+  </nav>
+
+  <div class="card" style="text-align:center;padding:60px">
+    <h2 style="border:0;color:#1e88e5">Welcome to Kiboswa HMS</h2>
+    <p style="color:#666;margin:12px 0 24px">Select a section from the navigation above to get started.</p>
+    <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+      <a href="/intake"    class="btn btn-primary">Patient Intake</a>
+      <a href="/queue"     class="btn btn-warn"   >Active Queue</a>
+      <a href="/records"   class="btn btn-gray"   >Records</a>
+      <a href="/dashboard" class="btn btn-success" >Dashboard</a>
+    </div>
+  </div>
+
+</div>
+<script src="/static/js/app.js"></script>
+</body>
+</html>
