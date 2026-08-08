@@ -328,7 +328,13 @@ func main() {
 	mux.HandleFunc("/api/visits",    handleVisits)
 	mux.HandleFunc("/api/visits/",   handleVisitByID)
 
-	addr := ":8080"
+	port := os.Getenv("PORT")
+
+	if port == "" {
+		port = "10000"
+	}
+
+	addr := ":" + port
 	srv := &http.Server{
 		Addr:         addr,
 		Handler:      corsMiddleware(mux),
@@ -350,7 +356,7 @@ func main() {
 		}
 	}()
 
-	log.Printf("Kiboswa HMS running at http://localhost%s", addr)
+	log.Printf("Kiboswa HMS running on port %s", port)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
