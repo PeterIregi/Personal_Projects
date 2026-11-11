@@ -7,7 +7,7 @@ services:
     rootDir: Hospital_management_System
     buildCommand: cd web/client && npm install && npm run build && cd ../.. && go build -tags netgo -ldflags '-s -w' -o app
     startCommand: ./app
-    plan: starter
+    plan: free
     region: oregon
     autoDeploy: true
     envVars:
