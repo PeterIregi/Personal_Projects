@@ -314,8 +314,8 @@ func main() {
 	fs := http.FileServer(http.Dir("web/static"))
 	mux.Handle("/static/", http.StripPrefix("/static/", fs))
 
-	// React SPA static assets (built by Vite into web/dist)
-	reactFS := http.FileServer(http.Dir("web/dist"))
+	// React SPA static assets (built by Vite into web/dist/assets)
+	reactFS := http.FileServer(http.Dir("web/dist/assets"))
 	mux.Handle("/assets/", http.StripPrefix("/assets/", reactFS))
 
 	// React SPA catch-all — serves index.html for all page routes,
