@@ -310,18 +310,25 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// Static assets
+	// Static assets (original CSS/JS)
 	fs := http.FileServer(http.Dir("web/static"))
 	mux.Handle("/static/", http.StripPrefix("/static/", fs))
 
-	// HTML pages — each route gets its own closure via pageHandler,
-	// avoiding the classic loop-variable capture bug.
-	mux.HandleFunc("/",          pageHandler("web/templates/index.html"))
-	mux.HandleFunc("/intake",    pageHandler("web/templates/intake.html"))
-	mux.HandleFunc("/queue",     pageHandler("web/templates/queue.html"))
-	mux.HandleFunc("/records",   pageHandler("web/templates/records.html"))
-	mux.HandleFunc("/visit",     pageHandler("web/templates/visit.html"))
-	mux.HandleFunc("/dashboard", pageHandler("web/templates/dashboard.html"))
+	// React SPA static assets (built by Vite into web/dist)
+	reactFS := http.FileServer(http.Dir("web/dist"))
+	mux.Handle("/assets/", http.StripPrefix("/assets/", reactFS))
+
+	// React SPA catch-all — serves index.html for all page routes,
+	// letting React Router handle client-side routing.
+	spaHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "web/dist/index.html")
+	})
+	mux.HandleFunc("/", spaHandler)
+	mux.HandleFunc("/intake", spaHandler)
+	mux.HandleFunc("/queue", spaHandler)
+	mux.HandleFunc("/records", spaHandler)
+	mux.HandleFunc("/visit", spaHandler)
+	mux.HandleFunc("/dashboard", spaHandler)
 
 	// REST API
 	mux.HandleFunc("/api/patients",  handlePatients)
