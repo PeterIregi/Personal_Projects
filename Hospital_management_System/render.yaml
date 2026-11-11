@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: KHMS
+    env: go
+    repo: https://github.com/PeterIregi/Personal_Projects
+    branch: main
+    rootDir: Hospital_management_System
+    buildCommand: cd web/client && npm install && npm run build && cd ../.. && go build -tags netgo -ldflags '-s -w' -o app
+    startCommand: ./app
+    plan: starter
+    region: oregon
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 10000
